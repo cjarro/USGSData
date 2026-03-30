@@ -27,7 +27,7 @@ narrow_df, station_df = load_data()
 st.sidebar.header("Filter Options")
 
 # Characteristic Selection
-characteristic_options = narrow_df['CharacteristicName'].unique()
+characteristic_options = sorted(narrow_df['CharacteristicName'].unique())
 selected_characteristic = st.sidebar.selectbox(
     "Select Water Quality Characteristic:",
     options=characteristic_options
