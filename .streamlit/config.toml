@@ -1,0 +1,21 @@
+[server]
+# Set to the port you want to use
+port = 8501
+
+# Allow external connections (important for production)
+headless = true
+
+# Run the app on all network interfaces (0.0.0.0)
+# This makes it accessible from any IP, not just localhost
+listen.address = "0.0.0.0"
+
+# Disable gatherUsageStats for cleaner output in production
+[browser]
+gatherUsageStats = false
+
+[client]
+# Set to your actual domain/URL when deployed
+toolbarMode = "minimal"
+
+[logger]
+level = "info"
