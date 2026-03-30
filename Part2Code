@@ -1,0 +1,128 @@
+import matplotlib.pyplot as plt
+import seaborn as sns
+from matplotlib.lines import Line2D # Import Line2D for custom legend entries
+
+def plot_two_water_quality_characteristics(narrow_df, station_df, characteristic_name1, characteristic_name2):
+    """
+    Plots two specified water quality characteristics over time for each monitoring site,
+    using a secondary Y-axis for the second characteristic.
+
+    Args:
+        narrow_df (pd.DataFrame): DataFrame containing narrow water quality results.
+        station_df (pd.DataFrame): DataFrame containing station information.
+        characteristic_name1 (str): The first water quality characteristic to plot.
+        characteristic_name2 (str): The second water quality characteristic to plot.
+    """
+
+    # Filter for the desired characteristics
+    filtered_df1 = narrow_df[narrow_df['CharacteristicName'] == characteristic_name1].copy()
+    filtered_df2 = narrow_df[narrow_df['CharacteristicName'] == characteristic_name2].copy()
+
+    if filtered_df1.empty or filtered_df2.empty:
+        if filtered_df1.empty: print(f"No data found for characteristic: {characteristic_name1}")
+        if filtered_df2.empty: print(f"No data found for characteristic: {characteristic_name2}")
+        return
+
+    # Convert 'ActivityStartDate' to datetime for both
+    filtered_df1['ActivityStartDate'] = pd.to_datetime(filtered_df1['ActivityStartDate'], errors='coerce')
+    filtered_df2['ActivityStartDate'] = pd.to_datetime(filtered_df2['ActivityStartDate'], errors='coerce')
+
+    # Convert 'ResultMeasureValue' to numeric for both
+    filtered_df1['ResultMeasureValue'] = pd.to_numeric(filtered_df1['ResultMeasureValue'], errors='coerce')
+    filtered_df2['ResultMeasureValue'] = pd.to_numeric(filtered_df2['ResultMeasureValue'], errors='coerce')
+
+    # Drop rows where 'ActivityStartDate' or 'ResultMeasureValue' are NaN after conversion
+    filtered_df1.dropna(subset=['ActivityStartDate', 'ResultMeasureValue'], inplace=True)
+    filtered_df2.dropna(subset=['ActivityStartDate', 'ResultMeasureValue'], inplace=True)
+
+    if filtered_df1.empty or filtered_df2.empty:
+        if filtered_df1.empty: print(f"No valid numeric data or dates found for characteristic: {characteristic_name1} after cleaning.")
+        if filtered_df2.empty: print(f"No valid numeric data or dates found for characteristic: {characteristic_name2} after cleaning.")
+        return
+
+    # Extract relevant columns from station_df for site names
+    site_names_df = station_df[['MonitoringLocationIdentifier', 'MonitoringLocationName']].drop_duplicates(subset=['MonitoringLocationIdentifier'])
+
+    # Merge with site_names to get MonitoringLocationName for both
+    merged_df1 = pd.merge(filtered_df1, site_names_df, on='MonitoringLocationIdentifier', how='left')
+    merged_df2 = pd.merge(filtered_df2, site_names_df, on='MonitoringLocationIdentifier', how='left')
+
+    # Sort by date for proper time series plotting
+    merged_df1.sort_values(by='ActivityStartDate', inplace=True)
+    merged_df2.sort_values(by='ActivityStartDate', inplace=True)
+
+    # Get all unique monitoring location names across both filtered dataframes
+    all_unique_sites = pd.concat([merged_df1['MonitoringLocationName'], merged_df2['MonitoringLocationName']]).unique()
+    # Create a consistent color palette for sites
+    site_colors = sns.color_palette('tab10', n_colors=len(all_unique_sites))
+    site_palette = dict(zip(all_unique_sites, site_colors))
+
+    fig, ax1 = plt.subplots(figsize=(15, 8))
+
+    # Plot Characteristic 1 on the left Y-axis
+    sns.lineplot(
+        data=merged_df1,
+        x='ActivityStartDate',
+        y='ResultMeasureValue',
+        hue='MonitoringLocationName',
+        palette=site_palette, # Use the consistent palette
+        marker='o', # Marker for Characteristic 1
+        markersize=8, # Increased marker size
+        markeredgecolor='black', # Ensure visibility
+        errorbar=None,
+        alpha=0.7,
+        ax=ax1,
+        legend=False # Suppress default legend from this plot
+    )
+    ax1.set_xlabel('Date', fontsize=12)
+    unit1 = merged_df1['ResultMeasure/MeasureUnitCode'].dropna().iloc[0] if not merged_df1['ResultMeasure/MeasureUnitCode'].dropna().empty else "Unit Unknown"
+    ax1.set_ylabel(f'{characteristic_name1} Value ({unit1})', fontsize=12, color='blue')
+    ax1.tick_params(axis='y', labelcolor='blue')
+    ax1.grid(True, linestyle='--', alpha=0.7)
+
+    # Create a second Y-axis for Characteristic 2
+    ax2 = ax1.twinx()
+    sns.lineplot(
+        data=merged_df2,
+        x='ActivityStartDate',
+        y='ResultMeasureValue',
+        hue='MonitoringLocationName',
+        palette=site_palette, # Use the same consistent palette
+        marker='x', # Marker for Characteristic 2
+        markersize=8, # Increased marker size
+        markeredgecolor='black', # Ensure visibility
+        errorbar=None,
+        alpha=0.7,
+        ax=ax2,
+        legend=False # Suppress default legend from this plot
+    )
+    unit2 = merged_df2['ResultMeasure/MeasureUnitCode'].dropna().iloc[0] if not merged_df2['ResultMeasure/MeasureUnitCode'].dropna().empty else "Unit Unknown"
+    ax2.set_ylabel(f'{characteristic_name2} Value ({unit2})', fontsize=12, color='red')
+    ax2.tick_params(axis='y', labelcolor='red')
+
+    plt.title(f'{characteristic_name1} and {characteristic_name2} Over Time by Monitoring Site', fontsize=16)
+    plt.xticks(rotation=45)
+
+    # Custom legend for sites (explicitly create Line2D handles)
+    site_legend_handles = []
+    site_legend_labels = []
+    for site_name in all_unique_sites:
+        color = site_palette[site_name]
+        site_legend_handles.append(Line2D([0], [0], color=color, linestyle='-', label=site_name))
+        site_legend_labels.append(site_name)
+
+    # Create custom legend handles for the characteristics themselves
+    char1_legend_handle = Line2D([0], [0], color='blue', marker='o', linestyle='None', label=characteristic_name1)
+    char2_legend_handle = Line2D([0], [0], color='red', marker='x', linestyle='None', label=characteristic_name2)
+
+    # Combine handles and labels
+    combined_handles = site_legend_handles + [char1_legend_handle, char2_legend_handle]
+    combined_labels = site_legend_labels + [f'{characteristic_name1} (Left Axis)', f'{characteristic_name2} (Right Axis)']
+
+    # Place the combined legend
+    ax2.legend(combined_handles, combined_labels, title='Monitoring Site & Characteristic', bbox_to_anchor=(1.05, 1), loc='upper left')
+
+    plt.tight_layout()
+    plt.show()
+
+print("Function 'plot_two_water_quality_characteristics' defined.")
